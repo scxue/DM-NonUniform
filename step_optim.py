@@ -194,7 +194,7 @@ class StepOptim(object):
     def __init__(self, ns):
         super().__init__()
         self.ns = ns
-        self.T = 1.0
+        self.T = 1.0 # t_T of diffusion sampling, for VP models, T=1.0; for EDM models, T=80.0
 
     def alpha(self, t):
         t = torch.as_tensor(t, dtype = torch.float64)
@@ -238,9 +238,10 @@ class StepOptim(object):
         emlv_sq = np.exp(-2*lambda_vec_ext)
         alpha_vec = 1./np.sqrt(1+emlv_sq)
         sigma_vec = 1./np.sqrt(1+np.exp(2*lambda_vec_ext))
-        data_err_vec = (sigma_vec**2)/alpha_vec #1./alpha_vec
+        data_err_vec = (sigma_vec**2)/alpha_vec
+        # for pixel-space diffusion models, we empirically find (sigma_vec**1)/alpha_vec will be better
 
-        truncNum = 3
+        truncNum = 3 # For NFEs <= 7, set truncNum = 3 to avoid numerical instability; for NFEs > 7, truncNum = 0
         res = 0. 
         c_vec = np.zeros(N)
         for s in range(N):
@@ -272,6 +273,11 @@ class StepOptim(object):
         return res
 
     def get_ts_lambdas(self, N, eps, initType):
+        # eps is t_0 of diffusion sampling, e.g. 1e-3 for VP models
+        # initType: initTypes with '_origin' are baseline time step discretizations (without optimization)
+        # initTypes without '_origin' are optimized time step discretizations with corresponding baseline
+        # time step discretizations as initializations. For latent-space diffusion models, 'unif_t' is recommended.
+        # For pixel-space diffusion models, 'unif' is recommended (which is logSNR initialization)
 
         lambda_eps, lambda_T = self.lambda_func(eps).item(), self.lambda_func(self.T).item()
 
